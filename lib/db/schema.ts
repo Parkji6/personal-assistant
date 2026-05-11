@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, jsonb, bigserial } from 'drizzle-orm/pg-core';
 
 export const googleTokens = pgTable('google_tokens', {
   id: integer().primaryKey().default(1),
@@ -14,4 +14,15 @@ export const emailPreferences = pgTable('email_preferences', {
   urgentSenders: jsonb().default([]),
   urgentKeywords: jsonb().default([]),
   updatedAt: timestamp().defaultNow(),
+});
+
+export const conversationHistory = pgTable('conversation_history', {
+  id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+  userId: integer('user_id').notNull(),
+  role: text('role').notNull(), // 'user' | 'assistant'
+  message: text('message').notNull(),
+  messageType: text('message_type'), // 'text' | 'image'
+  imageUrl: text('image_url'),
+  actionTaken: text('action_taken'), // 'created_event', 'added_task', 'searched_emails', null
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
