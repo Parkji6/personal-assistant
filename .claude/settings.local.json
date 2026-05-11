@@ -22,7 +22,9 @@
       "mcp__1bbcbb02-3f0a-4237-957b-c3729ddea52c__get_runtime_logs",
       "Bash(curl -s \"http://localhost:3000/api/cron/morning-brief\")",
       "Bash(git add *)",
-      "Bash(git commit -m 'Day 4: Add Notion tasks integration to morning brief *)"
+      "Bash(git commit -m 'Day 4: Add Notion tasks integration to morning brief *)",
+      "Bash(git commit *)",
+      "Bash(grep -E \"\\(✓|Error|deployment|$\\)\")"
     ]
   }
 }
