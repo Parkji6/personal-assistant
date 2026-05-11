@@ -72,7 +72,6 @@ export async function processMessage(
       system: SYSTEM_PROMPT,
       messages,
       temperature: 0.7,
-      maxTokens: 500,
     });
 
     // Parse response to detect intent
