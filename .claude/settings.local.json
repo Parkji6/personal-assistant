@@ -24,7 +24,9 @@
       "Bash(git add *)",
       "Bash(git commit -m 'Day 4: Add Notion tasks integration to morning brief *)",
       "Bash(git commit *)",
-      "Bash(grep -E \"\\(✓|Error|deployment|$\\)\")"
+      "Bash(grep -E \"\\(✓|Error|deployment|$\\)\")",
+      "Bash(git init *)",
+      "Bash(git config *)"
     ]
   }
 }
