@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { conversationHistory } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { processMessage, extractActionDetails } from '@/lib/telegram-ai';
+import { processMessage, extractActionDetails, type ConversationMessage } from '@/lib/telegram-ai';
 import crypto from 'crypto';
 
 const client = postgres(process.env.DATABASE_URL || '');
