@@ -1,51 +1,94 @@
 # Personal Assistant
 
-A proactive personal AI assistant that delivers a morning brief via Telegram each day at ~7 AM Warsaw time. Five sections: weather, calendar, email triage, news digest, today's tasks. Built with Next.js 16 on Vercel.
+An AI-powered personal assistant that helps with email management, calendar scheduling, task tracking, and general queries via Telegram.
 
-See [`docs/PLAN-v1.1.md`](docs/PLAN-v1.1.md) for the full plan and [`docs/MILESTONES.md`](docs/MILESTONES.md) for the day-by-day build schedule.
+## Features
 
-## Day 1 status
+### Morning Brief (Cron Job)
+- **Daily 7 AM briefing** with weather, news, calendar events, emails, and tasks
+- **AI-powered synthesis** using Claude to summarize and prioritize information
+- **Multi-source integration**: Open-Meteo, RSS feeds, Google Calendar, Gmail, Notion
+- **Graceful degradation**: Brief sends even if some sources are unavailable
 
-End-to-end pipeline scaffolded:
+### Interactive Telegram Bot (Day 5)
+- **Chat with Claude**: Ask questions, get information, have conversations
+- **Email search**: Find specific emails (e.g., "Did I get a job offer?")
+- **Calendar management**: Create events with natural language (e.g., "Meeting tomorrow at 3pm")
+- **Task management**: Add tasks to Notion with priority and due dates
+- **Conversation memory**: Bot remembers last 5 messages for context
 
-- `app/api/cron/morning-brief/route.ts` — sends a hello-world Telegram message
-- `app/api/cron/dead-mans-switch/route.ts` — noon backup cron stub (wires up on Day 8.5)
-- `lib/telegram.ts` — HTML-mode send with 3× exponential-backoff retry on 5xx
-- `vercel.ts` — typed config; two crons at `0 5 * * *` and `0 11 * * *` UTC
+## Tech Stack
 
-## Local dev
+- **Framework**: Next.js 16 (App Router) + TypeScript
+- **AI**: Claude (Haiku 4.5 for bot, Sonnet 4.6 for synthesis) via Vercel AI Gateway
+- **Database**: PostgreSQL (Supabase) with Drizzle ORM
+- **APIs**: Google Calendar, Gmail, Notion, Telegram
+- **Deployment**: Vercel (Fluid Compute)
+- **Scheduling**: Vercel Cron Jobs
+
+## Setup
+
+### Prerequisites
+- Node.js 24+
+- Vercel account (for deployment)
+- Google Cloud project (for Gmail/Calendar)
+- Supabase project (PostgreSQL)
+- Telegram Bot Token
+- Notion API token
+
+### Local Development
 
 ```bash
-cp .env.example .env.local      # fill in TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+npm install
+
+# Set environment variables
+cp .env.example .env.local
+
+# Run database migrations
+npx drizzle-kit push
+
+# Start dev server
 npm run dev
-curl http://localhost:3000/api/cron/morning-brief
 ```
 
-The Telegram message should land within ~1 second.
+### Environment Variables
 
-## Deploy
-
-```bash
-vercel link                     # one-time: link to a Vercel project
-vercel env add TELEGRAM_BOT_TOKEN production
-vercel env add TELEGRAM_CHAT_ID production
-vercel deploy --prod
+```
+VERCEL_OIDC_TOKEN=...              # Vercel AI Gateway auth
+TELEGRAM_BOT_TOKEN=...              # Telegram bot token
+TELEGRAM_WEBHOOK_SECRET=...         # Webhook secret
+DATABASE_URL=postgresql://...       # Supabase connection string
+NOTION_TOKEN=...                    # Notion API token
+NOTION_TASKS_DB_ID=...              # Notion Tasks database ID
 ```
 
-Vercel auto-generates `CRON_SECRET` once it detects crons in `vercel.ts`. The route handlers verify the `Authorization: Bearer ${CRON_SECRET}` header in production.
+## Current Status
 
-## Testing the cron without waiting until 5 AM UTC
+### ✅ Completed
+- Morning brief with 5-section synthesis
+- Telegram webhook & Claude integration
+- Email search, calendar, and task action handlers
+- Conversation memory
+- Intent detection
+- Database schema with Drizzle ORM
 
-In the Vercel dashboard → Crons → click "Run". Or hit the route URL directly with the right header:
+### ⚠️ Known Issues
+- Database connectivity needs proper DATABASE_URL configuration
+- Google access tokens need to be set up in Vercel environment
 
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" \
-  https://<your-deployment>.vercel.app/api/cron/morning-brief
-```
+### 🚀 Next Steps
+1. Fix DATABASE_URL in Vercel
+2. Configure Google OAuth tokens
+3. Test all action handlers with real data
+4. Implement error recovery
 
-## Stack
+## Testing
 
-- Next.js 16 (App Router) + React 19, Tailwind v4
-- Vercel Functions (Fluid Compute, Node 24)
-- Telegram Bot API (HTML parse mode — far simpler escapes than MarkdownV2)
-- Coming next: Vercel AI Gateway → Claude Sonnet 4.6, Neon Postgres + Drizzle, Google OAuth, Notion, Open-Meteo, RSS
+Message `@YourBotName` on Telegram:
+- "Did I get any job offers?" → email search
+- "Add meeting tomorrow at 3pm" → calendar event
+- "Remind me to call dentist" → add task
+
+## License
+
+MIT
