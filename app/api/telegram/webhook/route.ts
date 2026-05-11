@@ -42,7 +42,12 @@ async function getConversationHistory(userId: number, limit: number = 5) {
       .orderBy(desc(conversationHistory.createdAt))
       .limit(limit);
 
-    return history.reverse(); // Return oldest to newest
+    return history
+      .reverse()
+      .map((msg) => ({
+        ...msg,
+        role: msg.role as 'user' | 'assistant',
+      })) as ConversationMessage[];
   } catch (error) {
     console.error('Failed to fetch conversation history:', error);
     return [];
