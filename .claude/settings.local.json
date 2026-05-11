@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(Get-ChildItem -Force)",
+      "Bash(Select-Object Name, Length, LastWriteTime)",
+      "Bash(npx create-next-app@latest personal-assistant --typescript --app --tailwind --eslint --no-src-dir --import-alias \"@/*\" --use-npm --yes)",
+      "Bash(mv personal-assistant/* personal-assistant/.[!.]* . 2>&1 && rmdir personal-assistant && ls -la)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(npx @vercel/config validate)",
+      "Bash(npx @vercel/config compile)",
+      "Bash(curl -sf -o /dev/null http://localhost:3000/api/cron/morning-brief --max-time 2)",
+      "Bash(vercel env *)",
+      "Bash(curl -s \"https://api.open-meteo.com/v1/forecast?latitude=52.20&longitude=21.01&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=Europe%2FWarsaw&forecast_days=1\")",
+      "Bash(curl -sf -o /dev/null http://localhost:3000/api/cron/morning-brief --max-time 30)",
+      "Bash(curl -sf -o /tmp/brief.json http://localhost:3000/api/cron/morning-brief --max-time 30)",
+      "Read(//tmp/**)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(vercel deploy *)",
+      "mcp__1bbcbb02-3f0a-4237-957b-c3729ddea52c__get_runtime_logs",
+      "Bash(curl -s \"http://localhost:3000/api/cron/morning-brief\")",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Day 4: Add Notion tasks integration to morning brief *)"
+    ]
+  }
+}

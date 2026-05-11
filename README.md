@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Personal Assistant
 
-## Getting Started
+A proactive personal AI assistant that delivers a morning brief via Telegram each day at ~7 AM Warsaw time. Five sections: weather, calendar, email triage, news digest, today's tasks. Built with Next.js 16 on Vercel.
 
-First, run the development server:
+See [`docs/PLAN-v1.1.md`](docs/PLAN-v1.1.md) for the full plan and [`docs/MILESTONES.md`](docs/MILESTONES.md) for the day-by-day build schedule.
+
+## Day 1 status
+
+End-to-end pipeline scaffolded:
+
+- `app/api/cron/morning-brief/route.ts` — sends a hello-world Telegram message
+- `app/api/cron/dead-mans-switch/route.ts` — noon backup cron stub (wires up on Day 8.5)
+- `lib/telegram.ts` — HTML-mode send with 3× exponential-backoff retry on 5xx
+- `vercel.ts` — typed config; two crons at `0 5 * * *` and `0 11 * * *` UTC
+
+## Local dev
 
 ```bash
+cp .env.example .env.local      # fill in TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+curl http://localhost:3000/api/cron/morning-brief
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Telegram message should land within ~1 second.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+vercel link                     # one-time: link to a Vercel project
+vercel env add TELEGRAM_BOT_TOKEN production
+vercel env add TELEGRAM_CHAT_ID production
+vercel deploy --prod
+```
 
-## Learn More
+Vercel auto-generates `CRON_SECRET` once it detects crons in `vercel.ts`. The route handlers verify the `Authorization: Bearer ${CRON_SECRET}` header in production.
 
-To learn more about Next.js, take a look at the following resources:
+## Testing the cron without waiting until 5 AM UTC
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+In the Vercel dashboard → Crons → click "Run". Or hit the route URL directly with the right header:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://<your-deployment>.vercel.app/api/cron/morning-brief
+```
 
-## Deploy on Vercel
+## Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router) + React 19, Tailwind v4
+- Vercel Functions (Fluid Compute, Node 24)
+- Telegram Bot API (HTML parse mode — far simpler escapes than MarkdownV2)
+- Coming next: Vercel AI Gateway → Claude Sonnet 4.6, Neon Postgres + Drizzle, Google OAuth, Notion, Open-Meteo, RSS
