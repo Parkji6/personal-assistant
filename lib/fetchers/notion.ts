@@ -44,8 +44,8 @@ export async function fetchTasks(): Promise<NotionTask[]> {
 
     const data = await res.json();
     return data.results
-      .map(parseNotionTask)
-      .filter((task): task is NotionTask => task !== null)
+      .map((page: any) => parseNotionTask(page))
+      .filter((task: NotionTask | null): task is NotionTask => task !== null)
       .slice(0, 5);
   } catch (e) {
     console.error('fetchTasks failed:', e instanceof Error ? e.message : e);
