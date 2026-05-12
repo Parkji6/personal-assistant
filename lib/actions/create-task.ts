@@ -46,13 +46,6 @@ export async function createNotionTask(
       };
     }
 
-    // Default status to "Todo"
-    properties.Status = {
-      select: {
-        name: 'Todo',
-      },
-    };
-
     const res = await fetch(`${NOTION_API_BASE}/pages`, {
       method: 'POST',
       headers: {
@@ -71,7 +64,7 @@ export async function createNotionTask(
     if (!res.ok) {
       const error = await res.text();
       console.error('Notion task creation error:', error);
-      return { success: false, message: `Failed to create task: ${res.status}` };
+      return { success: false, message: `Notion ${res.status}: ${error.slice(0, 200)}` };
     }
 
     const data = await res.json();
