@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { searchEmails } from './actions/search-emails';
 import { createCalendarEvent } from './actions/create-event';
 import { createNotionTask } from './actions/create-task';
+import { fetchCalendarEvents } from './fetchers/calendar';
+import { fetchTasks } from './fetchers/notion';
 import { getGoogleAccessToken as getGoogleAccessTokenFromDB } from './google';
 
 export interface ConversationMessage {
@@ -34,12 +36,16 @@ const SYSTEM_PROMPT = `You are a personal assistant available via Telegram for t
 
 You have these tools available — USE THEM, don't describe what you would do:
 - search_emails: Search the user's Gmail. Use Gmail query syntax (e.g., "from:heineken", "subject:offer", "is:unread newer_than:7d").
+- list_events: Read events from the user's Google Calendar. Pass timeMin/timeMax as ISO 8601 (defaults to today if omitted).
 - create_event: Create a Google Calendar event. Requires title and ISO 8601 startTime.
+- list_tasks: Read up to 5 open tasks from the user's Notion database (not-done, sorted by due date).
 - create_task: Add a task to Notion. Requires title; priority and dueDate optional.
 
 Rules:
 - When the user asks about emails, ALWAYS call search_emails. Never say "I would search" — actually search.
+- When the user asks about today's meetings/calendar/schedule, ALWAYS call list_events.
 - When the user wants to schedule something, ALWAYS call create_event with real parameters.
+- When the user asks about open tasks/todos, ALWAYS call list_tasks.
 - When the user wants a reminder/task, ALWAYS call create_task.
 - Use the actual tool results in your response. Never invent fake emails or fake data.
 - If a tool returns no results, tell the user honestly: "No emails found".
@@ -88,6 +94,27 @@ export async function processMessage(
             return result;
           },
         }),
+        list_events: tool({
+          description: 'List upcoming events from the user\'s Google Calendar. Defaults to today if no range given.',
+          inputSchema: z.object({
+            timeMin: z.string().optional().describe('Start of range, ISO 8601. Optional — defaults to start of today.'),
+            timeMax: z.string().optional().describe('End of range, ISO 8601. Optional — defaults to end of today.'),
+          }),
+          execute: async ({ timeMin, timeMax }) => {
+            const token = await getGoogleAccessToken();
+            if (!token) {
+              return { success: false, message: 'Calendar access not configured.' };
+            }
+            actionTaken = 'list_events';
+            const events = await fetchCalendarEvents(
+              token,
+              timeMin ? new Date(timeMin) : undefined,
+              timeMax ? new Date(timeMax) : undefined,
+            );
+            console.log('list_events result:', JSON.stringify({ count: events.length }));
+            return { success: true, events };
+          },
+        }),
         create_event: tool({
           description: 'Create an event in the user\'s Google Calendar.',
           inputSchema: z.object({
@@ -111,6 +138,16 @@ export async function processMessage(
             );
             console.log('create_event result:', JSON.stringify(result));
             return result;
+          },
+        }),
+        list_tasks: tool({
+          description: 'List up to 5 open tasks (not-done) from the user\'s Notion database, sorted by due date.',
+          inputSchema: z.object({}),
+          execute: async () => {
+            actionTaken = 'list_tasks';
+            const tasks = await fetchTasks();
+            console.log('list_tasks result:', JSON.stringify({ count: tasks.length }));
+            return { success: true, tasks };
           },
         }),
         create_task: tool({
