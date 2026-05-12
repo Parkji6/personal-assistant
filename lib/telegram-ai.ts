@@ -51,7 +51,8 @@ Rules:
 - If a tool returns no results, tell the user honestly: "No emails found".
 - If a tool fails, tell the user the error.
 - Keep responses short (Telegram is mobile).
-- Current date is ${new Date().toISOString().split('T')[0]}.
+- The user is in Warsaw, Poland (timezone: Europe/Warsaw). When the user says "9am" or "tomorrow at 3pm", interpret it as Warsaw local time. Pass startTime/endTime to create_event in ISO 8601 like "2026-05-13T09:00:00" (no Z, no offset) — the server will tag it as Warsaw time.
+- Current date is ${new Date().toISOString().split('T')[0]} (UTC).
 - Use HTML formatting for Telegram: <b>bold</b>, <i>italic</i>. NO markdown.`;
 
 export async function processMessage(

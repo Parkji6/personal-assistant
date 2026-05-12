@@ -23,16 +23,22 @@ export async function createCalendarEvent(
       endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
     }
 
+    // Format as local time (no Z) so Google interprets it in the timeZone we provide.
+    const toLocalISO = (d: Date) => {
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 19);
+    };
+
     const event = {
       summary: title,
       description,
       start: {
-        dateTime: startTime.toISOString(),
-        timeZone: 'UTC',
+        dateTime: toLocalISO(startTime),
+        timeZone: 'Europe/Warsaw',
       },
       end: {
-        dateTime: endTime.toISOString(),
-        timeZone: 'UTC',
+        dateTime: toLocalISO(endTime),
+        timeZone: 'Europe/Warsaw',
       },
     };
 

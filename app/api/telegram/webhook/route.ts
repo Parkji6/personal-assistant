@@ -38,7 +38,7 @@ function isAllowedUser(userId: number): boolean {
   return ids.includes(String(userId));
 }
 
-async function getConversationHistory(userId: number, limit: number = 5) {
+async function getConversationHistory(userId: number, limit: number = 20) {
   try {
     const history = await db
       .select()
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     let history: ConversationMessage[] = [];
     try {
-      history = await getConversationHistory(userId, 5);
+      history = await getConversationHistory(userId, 20);
     } catch (e) {
       console.warn('Skipping conversation history due to DB error');
     }
