@@ -26,7 +26,11 @@
       "Bash(git commit *)",
       "Bash(grep -E \"\\(✓|Error|deployment|$\\)\")",
       "Bash(git init *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(curl -s \"https://personal-assistant-gwvte9wg2-parkji6s-projects.vercel.app/api/cron/morning-brief\" -i)"
     ]
   }
 }

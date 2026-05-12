@@ -1,4 +1,8 @@
-import { generateText } from 'ai';
+import { generateText, tool, stepCountIs } from 'ai';
+import { z } from 'zod';
+import { searchEmails } from './actions/search-emails';
+import { createCalendarEvent } from './actions/create-event';
+import { createNotionTask } from './actions/create-task';
 
 export interface ConversationMessage {
   id: bigint;
@@ -10,122 +14,130 @@ export interface ConversationMessage {
 
 export interface AIResponse {
   text: string;
-  intent?: 'search_emails' | 'create_event' | 'add_task' | 'general_chat';
-  actionDetails?: Record<string, string | number>;
+  actionTaken?: string;
 }
 
-const SYSTEM_PROMPT = `You are a personal assistant available via Telegram. You help with:
+async function getGoogleAccessToken(): Promise<string | null> {
+  if (process.env.GOOGLE_ACCESS_TOKEN) {
+    return process.env.GOOGLE_ACCESS_TOKEN;
+  }
+  return null;
+}
 
-1. **Email search** — Search for specific emails (e.g., "did I get a job offer?")
-2. **Calendar management** — Create events in Google Calendar
-3. **Task management** — Add tasks to Notion
-4. **General chat** — Answer questions and provide information
+const SYSTEM_PROMPT = `You are a personal assistant available via Telegram for the user.
 
-**User context**: The user is job hunting, so they care about job offers and related emails.
+You have these tools available — USE THEM, don't describe what you would do:
+- search_emails: Search the user's Gmail. Use Gmail query syntax (e.g., "from:heineken", "subject:offer", "is:unread newer_than:7d").
+- create_event: Create a Google Calendar event. Requires title and ISO 8601 startTime.
+- create_task: Add a task to Notion. Requires title; priority and dueDate optional.
 
-**How to detect intent**:
-- If user asks about emails, jobs, or messages → intent: "search_emails"
-- If user mentions "tomorrow/next week" + "meeting/call/lunch" → intent: "create_event"
-- If user says "remind me", "add task", "don't forget" → intent: "add_task"
-- Otherwise → intent: "general_chat"
-
-**For action intents**, extract relevant details in your response:
-- For emails: mention the search query you'll use
-- For events: extract title, date, time
-- For tasks: extract title, priority (if mentioned), due date (if mentioned)
-
-**Important**:
-- Always respond conversationally, don't just output JSON
-- DO NOT ask for confirmation — just state the action directly
-- Be concise (this is Telegram, keep it short)
-- If you detect an action, state it clearly in your response
-
-**Examples**:
-User: "Did I get any offers?"
-Response: "🔍 Searching for job offer emails..."
-
-User: "Add a meeting with Jane tomorrow at 2pm"
-Response: "📅 Creating a meeting with Jane tomorrow at 2pm..."
-
-User: "Remind me to call the dentist"
-Response: "✅ Adding 'Call the dentist' to your tasks..."`;
+Rules:
+- When the user asks about emails, ALWAYS call search_emails. Never say "I would search" — actually search.
+- When the user wants to schedule something, ALWAYS call create_event with real parameters.
+- When the user wants a reminder/task, ALWAYS call create_task.
+- Use the actual tool results in your response. Never invent fake emails or fake data.
+- If a tool returns no results, tell the user honestly: "No emails found".
+- If a tool fails, tell the user the error.
+- Keep responses short (Telegram is mobile).
+- Current date is ${new Date().toISOString().split('T')[0]}.
+- Use HTML formatting for Telegram: <b>bold</b>, <i>italic</i>. NO markdown.`;
 
 export async function processMessage(
   messageText: string,
   conversationHistory: ConversationMessage[],
 ): Promise<AIResponse> {
-  // Format conversation history for Claude
   const messages = conversationHistory.map((msg) => ({
     role: msg.role as 'user' | 'assistant',
     content: msg.message,
   }));
 
-  // Add current message
   messages.push({
     role: 'user',
     content: messageText,
   });
+
+  let actionTaken: string | undefined;
 
   try {
     const response = await generateText({
       model: 'anthropic/claude-haiku-4-5-20251001',
       system: SYSTEM_PROMPT,
       messages,
-      temperature: 0.7,
+      temperature: 0.3,
+      stopWhen: stepCountIs(5),
+      tools: {
+        search_emails: tool({
+          description: 'Search the user\'s Gmail inbox. Returns up to 5 matching emails.',
+          inputSchema: z.object({
+            query: z.string().describe('Gmail search query (e.g., "from:heineken", "subject:offer", "is:unread")'),
+          }),
+          execute: async ({ query }) => {
+            const token = await getGoogleAccessToken();
+            if (!token) {
+              return { success: false, message: 'Gmail access not configured. Set GOOGLE_ACCESS_TOKEN.' };
+            }
+            actionTaken = 'search_emails';
+            const result = await searchEmails(token, query);
+            console.log('search_emails result:', JSON.stringify(result));
+            return result;
+          },
+        }),
+        create_event: tool({
+          description: 'Create an event in the user\'s Google Calendar.',
+          inputSchema: z.object({
+            title: z.string().describe('Event title'),
+            description: z.string().optional().describe('Event description'),
+            startTime: z.string().describe('Start time in ISO 8601 format (e.g., 2026-05-13T15:00:00Z)'),
+            endTime: z.string().optional().describe('End time in ISO 8601 format. Defaults to 1 hour after start.'),
+          }),
+          execute: async ({ title, description, startTime, endTime }) => {
+            const token = await getGoogleAccessToken();
+            if (!token) {
+              return { success: false, message: 'Calendar access not configured.' };
+            }
+            actionTaken = 'create_event';
+            const result = await createCalendarEvent(
+              token,
+              title,
+              description || 'Created via Telegram',
+              new Date(startTime),
+              endTime ? new Date(endTime) : undefined
+            );
+            console.log('create_event result:', JSON.stringify(result));
+            return result;
+          },
+        }),
+        create_task: tool({
+          description: 'Add a task to the user\'s Notion database.',
+          inputSchema: z.object({
+            title: z.string().describe('Task title'),
+            priority: z.enum(['High', 'Medium', 'Low']).optional().describe('Task priority'),
+            dueDate: z.string().optional().describe('Due date in YYYY-MM-DD format'),
+          }),
+          execute: async ({ title, priority, dueDate }) => {
+            const notionToken = process.env.NOTION_TOKEN;
+            const notionDbId = process.env.NOTION_TASKS_DB_ID;
+            if (!notionToken || !notionDbId) {
+              return { success: false, message: 'Notion access not configured.' };
+            }
+            actionTaken = 'create_task';
+            const result = await createNotionTask(notionToken, notionDbId, title, priority, dueDate);
+            console.log('create_task result:', JSON.stringify(result));
+            return result;
+          },
+        }),
+      },
     });
 
-    // Parse response to detect intent
-    const text = response.text.toLowerCase();
-    let intent: AIResponse['intent'] = 'general_chat';
-
-    if (
-      text.includes('search') && (text.includes('email') || text.includes('gmail'))
-    ) {
-      intent = 'search_emails';
-    } else if (
-      (text.includes('add') || text.includes('create')) &&
-      (text.includes('event') ||
-        text.includes('meeting') ||
-        text.includes('calendar'))
-    ) {
-      intent = 'create_event';
-    } else if (
-      (text.includes('add') || text.includes('create')) &&
-      (text.includes('task') ||
-        text.includes('notion') ||
-        text.includes('remind'))
-    ) {
-      intent = 'add_task';
-    }
-
     return {
-      text: response.text,
-      intent,
+      text: response.text || 'Done.',
+      actionTaken,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('processMessage failed:', message);
     return {
-      text: "Sorry, I'm having trouble processing your message. Please try again.",
-      intent: 'general_chat',
+      text: `Sorry, something went wrong: ${message}`,
     };
   }
-}
-
-export function extractActionDetails(
-  text: string,
-  intent: AIResponse['intent'],
-): Record<string, string | number> | undefined {
-  if (intent === 'search_emails') {
-    // Extract email search query from the message
-    const match = text.match(/(?:search|find|check|look for)(?:\s+(?:my|your))?\s+(.+?)(?:\.|$)/i);
-    return { query: match ? match[1].trim() : 'unspecified' };
-  } else if (intent === 'create_event') {
-    // Extract event details (simple parsing)
-    return { eventDescription: text };
-  } else if (intent === 'add_task') {
-    // Extract task details
-    return { taskDescription: text };
-  }
-  return undefined;
 }
