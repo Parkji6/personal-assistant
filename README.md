@@ -1,93 +1,121 @@
 # Personal Assistant
 
-An AI-powered personal assistant that helps with email management, calendar scheduling, task tracking, and general queries via Telegram.
+An AI-powered personal assistant that delivers a daily morning brief to Telegram and lets you chat with the bot to read your Gmail, manage your Google Calendar, and add tasks to Notion.
+
+Single-user. Built for me, but the source is here if it's useful.
 
 ## Features
 
-### Morning Brief (Cron Job)
-- **Daily 7 AM briefing** with weather, news, calendar events, emails, and tasks
-- **AI-powered synthesis** using Claude to summarize and prioritize information
-- **Multi-source integration**: Open-Meteo, RSS feeds, Google Calendar, Gmail, Notion
-- **Graceful degradation**: Brief sends even if some sources are unavailable
+### Daily Morning Brief
+Cron-triggered every morning (~7 AM Warsaw time) — sends a single Telegram message containing:
+- Weather (current temp, feels-like, wind, rain windows) via Open-Meteo
+- Today's calendar events (Google Calendar)
+- Open tasks (Notion)
+- Urgent emails (Gmail)
+- Top headlines from 5 categorized RSS feeds, each summarized by Claude
 
-### Interactive Telegram Bot (Day 5)
-- **Chat with Claude**: Ask questions, get information, have conversations
-- **Email search**: Find specific emails (e.g., "Did I get a job offer?")
-- **Calendar management**: Create events with natural language (e.g., "Meeting tomorrow at 3pm")
-- **Task management**: Add tasks to Notion with priority and due dates
-- **Conversation memory**: Bot remembers last 5 messages for context
+Graceful degradation — if any source is unavailable, the brief still sends with the others.
+
+### Interactive Telegram Bot
+Two-way conversation with tool-calling. Claude executes real API calls and uses the actual results in its responses.
+
+Available tools:
+- `search_emails` — Gmail search with native query syntax
+- `list_events` / `create_event` — Google Calendar read/write
+- `list_tasks` / `create_task` — Notion database read/write
+
+Conversation history (last 20 messages) is persisted in Postgres for context across turns.
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router) + TypeScript
-- **AI**: Claude (Haiku 4.5 for bot, Sonnet 4.6 for synthesis) via Vercel AI Gateway
-- **Database**: PostgreSQL (Supabase) with Drizzle ORM
-- **APIs**: Google Calendar, Gmail, Notion, Telegram
-- **Deployment**: Vercel (Fluid Compute)
-- **Scheduling**: Vercel Cron Jobs
+- **Framework**: Next.js 16 (App Router) on Vercel Fluid Compute
+- **AI**: Claude via Vercel AI Gateway — Haiku 4.5 for bot conversations, Sonnet for headline synthesis
+- **Database**: Supabase Postgres + Drizzle ORM
+- **Integrations**: Google OAuth (Gmail + Calendar), Notion API, Telegram Bot API
+- **Scheduling**: Vercel Cron
+
+## Architecture
+
+```
+Telegram → /api/telegram/webhook → Claude (tools) → Gmail/Calendar/Notion APIs
+                                       ↓
+                                  Supabase (conversation history)
+
+Vercel Cron → /api/cron/morning-brief → fetch 5 sources in parallel
+                                          ↓
+                                     Claude (summarize headlines)
+                                          ↓
+                                     Telegram sendMessage
+```
+
+Google access tokens are auto-refreshed via a stored refresh token in the database. No long-lived bearer tokens in env vars.
 
 ## Setup
 
 ### Prerequisites
 - Node.js 24+
-- Vercel account (for deployment)
-- Google Cloud project (for Gmail/Calendar)
-- Supabase project (PostgreSQL)
-- Telegram Bot Token
-- Notion API token
+- Vercel account (auto-deploys from `main`)
+- Supabase project (Postgres)
+- Google Cloud OAuth client (Gmail + Calendar scopes)
+- Telegram bot (via [@BotFather](https://t.me/botfather))
+- Notion integration with access to a Tasks database
 
 ### Local Development
 
 ```bash
 npm install
-
-# Set environment variables
-cp .env.example .env.local
-
-# Run database migrations
-npx drizzle-kit push
-
-# Start dev server
+cp .env.example .env.local      # fill in real values
+npx drizzle-kit push             # apply migrations
 npm run dev
 ```
 
 ### Environment Variables
 
 ```
-VERCEL_OIDC_TOKEN=...              # Vercel AI Gateway auth
-TELEGRAM_BOT_TOKEN=...              # Telegram bot token
-TELEGRAM_WEBHOOK_SECRET=...         # Webhook secret
-DATABASE_URL=postgresql://...       # Supabase connection string
-NOTION_TOKEN=...                    # Notion API token
-NOTION_TASKS_DB_ID=...              # Notion Tasks database ID
+# Telegram
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=                # chat ID where morning brief is sent
+TELEGRAM_WEBHOOK_SECRET=         # arbitrary random string
+ALLOWED_TELEGRAM_USER_IDS=       # comma-separated allowlist (fail closed)
+
+# Cron auth (Vercel sets this automatically when crons exist)
+CRON_SECRET=
+
+# AI
+AI_GATEWAY_API_KEY=              # or rely on VERCEL_OIDC_TOKEN on Vercel
+
+# Google OAuth (Gmail readonly + Calendar full)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=             # https://<your-domain>/api/auth/google/callback
+
+# Notion
+NOTION_TOKEN=
+NOTION_TASKS_DB_ID=              # 32-char hex UUID of the database (not the page)
+
+# Database
+DATABASE_URL=                    # Supabase Postgres connection string
 ```
 
-## Current Status
+### One-time Google authorization
+After deploying, visit `https://<your-domain>/api/auth/google` and grant permissions. The callback stores a long-lived refresh token in the database — the bot then auto-refreshes access tokens on every request.
 
-### ✅ Completed
-- Morning brief with 5-section synthesis
-- Telegram webhook & Claude integration
-- Email search, calendar, and task action handlers
-- Conversation memory
-- Intent detection
-- Database schema with Drizzle ORM
+### Telegram webhook
+Register the webhook to point at your production domain:
 
-### ⚠️ Known Issues
-- Database connectivity needs proper DATABASE_URL configuration
-- Google access tokens need to be set up in Vercel environment
+```bash
+curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://<your-domain>/api/telegram/webhook","secret_token":"<your-secret>"}'
+```
 
-### 🚀 Next Steps
-1. Fix DATABASE_URL in Vercel
-2. Configure Google OAuth tokens
-3. Test all action handlers with real data
-4. Implement error recovery
+## Security
 
-## Testing
-
-Message `@YourBotName` on Telegram:
-- "Did I get any job offers?" → email search
-- "Add meeting tomorrow at 3pm" → calendar event
-- "Remind me to call dentist" → add task
+- Webhook requests verified via `secret_token` header
+- User-level allowlist (`ALLOWED_TELEGRAM_USER_IDS`) — bot rejects everyone else by default
+- Cron endpoints require `Bearer $CRON_SECRET` in production (fail closed if unset)
+- Google tokens stored in Postgres, never in env vars
+- Error messages sent to the user are sanitized — internals never leak
 
 ## License
 
