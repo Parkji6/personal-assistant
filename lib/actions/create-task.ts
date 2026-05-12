@@ -19,7 +19,7 @@ export async function createNotionTask(
 
   try {
     const properties: Record<string, any> = {
-      Title: {
+      Name: {
         title: [
           {
             text: {

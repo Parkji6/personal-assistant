@@ -58,7 +58,7 @@ function parseNotionTask(page: any): NotionTask | null {
   try {
     const props = page.properties;
 
-    const titleProp = props.Title?.title?.[0]?.plain_text || '';
+    const titleProp = props.Name?.title?.[0]?.plain_text || props.Title?.title?.[0]?.plain_text || '';
     const dueDateProp = props['Due Date']?.date?.start;
     const priorityProp = props.Priority?.select?.name;
     const statusProp = props.Status?.select?.name;
