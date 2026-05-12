@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { searchEmails } from './actions/search-emails';
 import { createCalendarEvent } from './actions/create-event';
 import { createNotionTask } from './actions/create-task';
+import { getGoogleAccessToken as getGoogleAccessTokenFromDB } from './google';
 
 export interface ConversationMessage {
   id: bigint;
@@ -18,6 +19,11 @@ export interface AIResponse {
 }
 
 async function getGoogleAccessToken(): Promise<string | null> {
+  // Prefer DB-backed refresh flow (always returns fresh token)
+  const fromDB = await getGoogleAccessTokenFromDB();
+  if (fromDB) return fromDB;
+
+  // Fallback to env var (manually rotated, expires in ~1h)
   if (process.env.GOOGLE_ACCESS_TOKEN) {
     return process.env.GOOGLE_ACCESS_TOKEN;
   }
@@ -137,7 +143,7 @@ export async function processMessage(
     const message = error instanceof Error ? error.message : String(error);
     console.error('processMessage failed:', message);
     return {
-      text: `Sorry, something went wrong: ${message}`,
+      text: 'Sorry, something went wrong. Please try again.',
     };
   }
 }

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb, bigserial } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, jsonb, bigserial, bigint } from 'drizzle-orm/pg-core';
 
 export const googleTokens = pgTable('google_tokens', {
   id: integer().primaryKey().default(1),
@@ -18,7 +18,7 @@ export const emailPreferences = pgTable('email_preferences', {
 
 export const conversationHistory = pgTable('conversation_history', {
   id: bigserial('id', { mode: 'bigint' }).primaryKey(),
-  userId: integer('user_id').notNull(),
+  userId: bigint('user_id', { mode: 'number' }).notNull(),
   role: text('role').notNull(), // 'user' | 'assistant'
   message: text('message').notNull(),
   messageType: text('message_type'), // 'text' | 'image'

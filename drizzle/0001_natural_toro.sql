@@ -1,0 +1,1 @@
+ALTER TABLE "conversation_history" ALTER COLUMN "user_id" SET DATA TYPE bigint;

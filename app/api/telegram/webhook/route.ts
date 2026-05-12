@@ -31,6 +31,13 @@ function verifyTelegramSignature(req: NextRequest): boolean {
   return signature === secret;
 }
 
+function isAllowedUser(userId: number): boolean {
+  const allowList = process.env.ALLOWED_TELEGRAM_USER_IDS;
+  if (!allowList) return false; // fail closed — must explicitly allow
+  const ids = allowList.split(',').map((s) => s.trim()).filter(Boolean);
+  return ids.includes(String(userId));
+}
+
 async function getConversationHistory(userId: number, limit: number = 5) {
   try {
     const history = await db
@@ -115,6 +122,11 @@ export async function POST(request: NextRequest) {
     const userId = tgMessage.from.id;
     const chatId = tgMessage.chat.id;
     const messageText = tgMessage.text;
+
+    if (!isAllowedUser(userId)) {
+      console.warn(`[${update_id}] Rejected message from unauthorized user ${userId}`);
+      return NextResponse.json({ ok: true });
+    }
 
     console.log(`[${update_id}] User ${userId}: ${messageText}`);
 

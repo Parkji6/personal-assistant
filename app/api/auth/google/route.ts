@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const scope = [
     'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/calendar',
   ].join(' ');
 
   const params = new URLSearchParams();
@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
   params.append('response_type', 'code');
   params.append('scope', scope);
   params.append('access_type', 'offline');
+  params.append('prompt', 'consent');
 
   const authUrl = `${GOOGLE_AUTH_URL}?${params}`;
 
